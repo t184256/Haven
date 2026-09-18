@@ -1864,7 +1864,7 @@ fn run_rdp_session(
     // their PDUs go through `active_stage.encode_static`, which is not shareable.
     let input_counters = Arc::new(InputCounters::default());
     let stop_input = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let input_thread = if fastpath_input_supported {
+    let mut input_thread = if fastpath_input_supported {
         let queue = Arc::clone(input_queue);
         let mut sink = tls_shared.clone();
         let st = Arc::clone(state);
@@ -2225,6 +2225,10 @@ fn run_rdp_session(
                                         "#117: server redirection received (flags={:#010x}) — reconnecting to follow the handover",
                                         info.redir_flags,
                                     );
+                                    stop_input.store(true, std::sync::atomic::Ordering::Release);
+                                    if let Some(handle) = input_thread.take() {
+                                        let _ = handle.join();
+                                    }
                                     return Ok(Some(plan));
                                 }
                             }
